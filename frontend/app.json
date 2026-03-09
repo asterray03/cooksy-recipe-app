@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "cooksy",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.cooksy.app",
@@ -72,6 +72,7 @@
       "eas": {
         "projectId": "f4a17237-655d-45a1-8fea-3df30018ed85"
       }
-    }
+    },
+    "owner": "palak_shete"
   }
 }
