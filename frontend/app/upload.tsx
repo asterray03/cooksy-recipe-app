@@ -2,12 +2,12 @@ import { useMemo, useState, useEffect } from "react";
 import Voice from "@react-native-voice/voice";
 import { Audio } from "expo-av";
 import * as ImagePicker from "expo-image-picker";
-import { parseRecipe } from "@/src/services/aiService";
+import { parseRecipe } from "@/services/aiService";
 import { Alert, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import type { TextInputProps } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { addRecipe } from "@/src/services/api";
+import { addRecipe } from "@/services/api";
 import { AppTheme } from "@/constants/app-theme";
 import { auth } from "@/config/firebase";
 

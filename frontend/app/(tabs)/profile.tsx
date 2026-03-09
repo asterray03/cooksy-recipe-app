@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { signOut } from "firebase/auth";
 import { auth } from "@/config/firebase";
-import { checkinGamification, getGamification, getMyProfile, getMyRecipes, getSavedRecipes, toggleSaveRecipe } from "@/src/services/api";
+import { checkinGamification, getGamification, getMyProfile, getMyRecipes, getSavedRecipes, toggleSaveRecipe } from "@/services/api";
 import { AppTheme } from "@/constants/app-theme";
 import { isGuestSession, setGuestSession } from "@/state/session";
 import { getThemeMode, setThemeMode } from "@/state/app-features";

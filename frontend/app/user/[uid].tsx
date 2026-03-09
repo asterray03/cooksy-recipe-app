@@ -3,7 +3,7 @@ import { Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { auth } from "@/config/firebase";
-import { getFollowStatus, getUserProfile, getUserRecipes, toggleFollow } from "@/src/services/api";
+import { getFollowStatus, getUserProfile, getUserRecipes, toggleFollow } from "@/services/api";
 import { AppTheme } from "@/constants/app-theme";
 
 type Profile = {

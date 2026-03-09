@@ -10,7 +10,7 @@ const loadServiceAccount = () => {
     return JSON.parse(fromEnv);
   }
 
-  const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || "./firebaseKey.json";
+  const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || "./firebase/firebaseKey.json";
   return JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
 };
 

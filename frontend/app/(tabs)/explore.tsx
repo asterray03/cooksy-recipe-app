@@ -3,7 +3,7 @@ import { Image, Pressable, RefreshControl, ScrollView, Text, TextInput, View } f
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { categories } from "@/constants/mock-data";
-import { getMyProfile, getRecipes } from "@/src/services/api";
+import { getMyProfile, getRecipes } from "@/services/api";
 import { AppTheme } from "@/constants/app-theme";
 import { addSearchHistory, getFavoriteLocal, getSearchHistory, toggleFavoriteLocal, useFeatureState } from "@/state/app-features";
 import { getDifficulty } from "@/utils/recipe";

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
-import { getMyProfile, updateMyProfile } from "@/src/services/api";
+import { getMyProfile, updateMyProfile } from "@/services/api";
 
 type ProfileForm = {
   name: string;

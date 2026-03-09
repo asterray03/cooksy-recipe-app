@@ -14,9 +14,9 @@ import { Ionicons } from "@expo/vector-icons";
 import Voice from "@react-native-voice/voice";
 import { router } from "expo-router";
 import { categories } from "@/constants/mock-data";
-import { generateAiRecipe, getMyProfile, getRecipes } from "@/src/services/api";
+import { generateAiRecipe, getMyProfile, getRecipes } from "@/services/api";
 import { AppTheme } from "@/constants/app-theme";
-import IngredientExtractor  from "../../src/components/IngredientExtractor";
+import IngredientExtractor  from "../../components/IngredientExtractor";
 import {
   addSearchHistory,
   getFavoriteLocal,
