@@ -1,0 +1,15 @@
+# Ignore database files
+db/
+
+# Ignore python cache
+__pycache__/
+*.pyc
+
+# Ignore virtual environments
+venv/
+.env
+
+# Ignore OS files
+.DS_Store
+
+firebaseKey.json

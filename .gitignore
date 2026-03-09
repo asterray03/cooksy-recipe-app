@@ -1,0 +1,6 @@
+node_modules
+.expo/
+cooksy/.expo/
+.env
+backend/.env
+backend/firebaseKey.json
