@@ -1,10 +1,9 @@
-Place your Firebase Admin service account JSON here for local development.
+Firebase Admin credentials are now loaded from environment variables.
 
-Expected default path:
+Required backend env vars:
 
-- `backend/firebase/firebaseKey.json`
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_CLIENT_EMAIL`
+- `FIREBASE_PRIVATE_KEY`
 
-Or set one of these env vars:
-
-- `FIREBASE_SERVICE_ACCOUNT_PATH`
-- `FIREBASE_SERVICE_ACCOUNT_JSON`
+`FIREBASE_PRIVATE_KEY` should keep escaped newlines (for example `\\n`) and code converts them at runtime.

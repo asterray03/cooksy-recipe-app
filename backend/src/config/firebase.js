@@ -1,23 +1,26 @@
 import admin from "firebase-admin";
-import fs from "fs";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-const loadServiceAccount = () => {
-  const fromEnv = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  if (fromEnv) {
-    return JSON.parse(fromEnv);
+const requiredEnv = (key) => {
+  const value = process.env[key];
+  if (!value) {
+    throw new Error(`Missing required env var: ${key}`);
   }
-
-  const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || "./firebase/firebaseKey.json";
-  return JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
+  return value;
 };
 
-const serviceAccount = loadServiceAccount();
+const firebaseProjectId = requiredEnv("FIREBASE_PROJECT_ID");
+const firebaseClientEmail = requiredEnv("FIREBASE_CLIENT_EMAIL");
+const firebasePrivateKey = requiredEnv("FIREBASE_PRIVATE_KEY").replace(/\\n/g, "\n");
 
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
+  credential: admin.credential.cert({
+    projectId: firebaseProjectId,
+    clientEmail: firebaseClientEmail,
+    privateKey: firebasePrivateKey,
+  }),
 });
 
 const db = admin.firestore();
