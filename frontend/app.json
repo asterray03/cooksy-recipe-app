@@ -29,7 +29,8 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.cooksy.app",
       "permissions": [
-        "android.permission.RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "INTERNET"
       ]
     },
     "web": {
