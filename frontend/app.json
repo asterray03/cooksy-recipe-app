@@ -46,13 +46,6 @@
         }
       ],
       [
-        "@react-native-voice/voice",
-        {
-          "microphonePermission": "Cooksy uses your microphone to capture voice recipes.",
-          "speechRecognitionPermission": "Cooksy converts your voice into recipe text."
-        }
-      ],
-      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
@@ -63,7 +56,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-speech-recognition"
     ],
     "experiments": {
       "typedRoutes": true

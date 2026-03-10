@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import Voice from "@react-native-voice/voice";
+import { useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { router } from "expo-router";
 import { categories } from "@/constants/mock-data";
 import { generateAiRecipe, getMyProfile, getRecipes } from "@/services/api";
@@ -25,6 +25,13 @@ import {
   useFeatureState,
 } from "@/state/app-features";
 import { getDifficulty } from "@/utils/recipe";
+import {
+  abortSpeechRecognitionSession,
+  getSpeechTranscript,
+  isSpeechRecognitionAvailable,
+  startSpeechRecognitionSession,
+  stopSpeechRecognitionSession,
+} from "@/utils/speechRecognition";
 
 type Recipe = {
   id: string;
@@ -351,7 +358,7 @@ function SectionTitle({ title, subtitle, style }: { title: string; subtitle: str
 }
 
 function VoiceChefCard() {
-  const isVoiceSupported = !!Voice && typeof Voice.start === "function";
+  const isVoiceSupported = isSpeechRecognitionAvailable();
   const [listening, setListening] = useState(false);
   const [queryText, setQueryText] = useState("");
   const [loading, setLoading] = useState(false);
@@ -408,8 +415,25 @@ function VoiceChefCard() {
       return;
     }
     try {
+      setError("");
+      const result = await startSpeechRecognitionSession({
+        lang: "en-US",
+        interimResults: true,
+      });
+
+      if (!result.ok) {
+        if (result.reason === "permissions") {
+          setError("Microphone permission was denied.");
+        } else if (result.reason === "busy") {
+          setError("Voice recognition is already in use.");
+        } else {
+          setError("Voice input is not available in this runtime.");
+        }
+        setListening(false);
+        return;
+      }
+
       setListening(true);
-      await Voice.start("en-US");
     } catch (err: any) {
       setListening(false);
       setError(err?.message || "Could not start voice input.");
@@ -418,36 +442,40 @@ function VoiceChefCard() {
 
   const stopListening = async () => {
     if (!isVoiceSupported) return;
-    try {
-      await Voice.stop();
-    } finally {
-      setListening(false);
-    }
+    stopSpeechRecognitionSession();
+    setListening(false);
   };
 
-  useEffect(() => {
-    if (!isVoiceSupported) return;
+  useSpeechRecognitionEvent("result", async (event) => {
+    if (!isVoiceSupported || !listening) return;
 
-    Voice.onSpeechResults = async (event: any) => {
-      const spoken = event?.value?.[0];
-      if (!spoken) return;
-      setQueryText(spoken);
+    const spoken = getSpeechTranscript(event);
+    if (!spoken) return;
+
+    setQueryText(spoken);
+
+    if (event.isFinal) {
       setListening(false);
       await generateFromPrompt(spoken);
-    };
+    }
+  });
 
-    Voice.onSpeechError = () => {
-      setListening(false);
-    };
+  useSpeechRecognitionEvent("error", (event) => {
+    if (!isVoiceSupported) return;
+    setListening(false);
+    setError(event?.message || "Voice recognition failed.");
+  });
 
+  useSpeechRecognitionEvent("end", () => {
+    if (!isVoiceSupported) return;
+    setListening(false);
+  });
+
+  useEffect(() => {
     return () => {
-      try {
-        Voice.onSpeechResults = undefined as any;
-        Voice.onSpeechError = undefined as any;
-      } catch {}
-      Voice.destroy().catch(() => {});
+      abortSpeechRecognitionSession();
     };
-  }, [generateFromPrompt, isVoiceSupported]);
+  }, []);
 
   return (
     <View style={{ marginHorizontal: 14, marginTop: 10, backgroundColor: "white", borderRadius: 14, borderWidth: 1, borderColor: AppTheme.colors.border, padding: 12 }}>
@@ -469,6 +497,7 @@ function VoiceChefCard() {
         </View>
         <Pressable
           onPress={listening ? stopListening : startListening}
+          disabled={loading}
           style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: listening ? "#d14d4d" : AppTheme.colors.primary, alignItems: "center", justifyContent: "center" }}
         >
           <Ionicons name={listening ? "stop" : "mic"} color="white" size={18} />

@@ -1,10 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
-import Voice from "@react-native-voice/voice";
+import { useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { extractIngredients } from "../services/aiService";
+import {
+  abortSpeechRecognitionSession,
+  getSpeechTranscript,
+  isSpeechRecognitionAvailable,
+  startSpeechRecognitionSession,
+} from "../utils/speechRecognition";
 
 export default function IngredientExtractor({ enableVoice = true }) {
-  const isVoiceSupported = !!Voice && typeof Voice.start === "function";
+  const isVoiceSupported = isSpeechRecognitionAvailable();
   const canUseVoice = enableVoice && isVoiceSupported;
   const [text, setText] = useState("");
   const [ingredients, setIngredients] = useState([]);
@@ -29,39 +35,53 @@ export default function IngredientExtractor({ enableVoice = true }) {
     if (!canUseVoice) return;
 
     try {
+      const result = await startSpeechRecognitionSession({
+        lang: "en-US",
+        interimResults: true,
+      });
+
+      if (!result.ok) {
+        setListening(false);
+        return;
+      }
+
       setListening(true);
-      await Voice.start("en-US");
     } catch (e) {
       console.log("Voice start error:", e);
       setListening(false);
     }
   };
 
-  useEffect(() => {
-    if (!canUseVoice) return;
+  useSpeechRecognitionEvent("result", (event) => {
+    if (!canUseVoice || !listening) return;
 
-    Voice.onSpeechResults = (event) => {
-      const spokenText = event.value?.[0];
-      if (!spokenText) return;
+    const spokenText = getSpeechTranscript(event);
+    if (!spokenText) return;
 
-      setText(spokenText);
+    setText(spokenText);
+
+    if (event.isFinal) {
+      setListening(false);
       runExtraction(spokenText);
-      setListening(false);
-    };
+    }
+  });
 
-    Voice.onSpeechError = (e) => {
-      console.log("Voice error:", e);
-      setListening(false);
-    };
+  useSpeechRecognitionEvent("error", (event) => {
+    if (!canUseVoice || !listening) return;
+    console.log("Voice error:", event);
+    setListening(false);
+  });
 
+  useSpeechRecognitionEvent("end", () => {
+    if (!canUseVoice) return;
+    setListening(false);
+  });
+
+  useEffect(() => {
     return () => {
-      try {
-        Voice.onSpeechResults = undefined;
-        Voice.onSpeechError = undefined;
-      } catch {}
-      Voice.destroy().catch(() => {});
+      abortSpeechRecognitionSession();
     };
-  }, [canUseVoice]);
+  }, []);
 
   return (
     <View
@@ -92,7 +112,7 @@ export default function IngredientExtractor({ enableVoice = true }) {
 
       <Pressable
         onPress={startRecording}
-        disabled={!canUseVoice}
+        disabled={!canUseVoice || listening}
         style={{
           backgroundColor: !canUseVoice ? "#b3b3b3" : listening ? "#999" : "#4CAF50",
           padding: 12,

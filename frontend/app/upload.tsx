@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import Voice from "@react-native-voice/voice";
+import { useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { Audio } from "expo-av";
 import * as ImagePicker from "expo-image-picker";
 import { parseRecipe } from "@/services/aiService";
@@ -10,6 +10,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { addRecipe } from "@/services/api";
 import { AppTheme } from "@/constants/app-theme";
 import { auth } from "@/config/firebase";
+import {
+  abortSpeechRecognitionSession,
+  getSpeechTranscript,
+  isSpeechRecognitionAvailable,
+  startSpeechRecognitionSession,
+  stopSpeechRecognitionSession,
+} from "@/utils/speechRecognition";
 
 const speechLanguages = [
   { label: "English", code: "en-US" },
@@ -27,7 +34,7 @@ const speechLanguages = [
 ];
 
 export default function UploadRecipeScreen() {
-  const isVoiceSupported = !!Voice && typeof Voice.start === "function";
+  const isVoiceSupported = isSpeechRecognitionAvailable();
   const [listening, setListening] = useState(false);
   const [speechLang, setSpeechLang] = useState("en-US");
   const [form, setForm] = useState({
@@ -67,8 +74,25 @@ export default function UploadRecipeScreen() {
       return;
     }
     try {
+      const result = await startSpeechRecognitionSession({
+        lang: speechLang,
+        interimResults: true,
+      });
+
+      if (!result.ok) {
+        if (result.reason === "permissions") {
+          setFeedback({ type: "error", text: "Microphone permission was denied." });
+        } else if (result.reason === "busy") {
+          setFeedback({ type: "error", text: "Voice recognition is already in use." });
+        } else {
+          setFeedback({ type: "error", text: "Voice input is not available in this runtime." });
+        }
+        setListening(false);
+        return;
+      }
+
       setListening(true);
-      await Voice.start(speechLang);
+      setFeedback(null);
     } catch (err) {
       console.log(err);
       setListening(false);
@@ -106,13 +130,8 @@ export default function UploadRecipeScreen() {
 
   const stopVoiceRecipe = async () => {
     if (!isVoiceSupported) return;
-    try {
-      await Voice.stop();
-    } catch (err) {
-      console.log(err);
-    } finally {
-      setListening(false);
-    }
+    stopSpeechRecognitionSession();
+    setListening(false);
   };
 
   const startVoiceRecording = async () => {
@@ -213,42 +232,52 @@ export default function UploadRecipeScreen() {
     }
   };
 
-  useEffect(() => {
+  useSpeechRecognitionEvent("result", async (event) => {
+    if (!isVoiceSupported || !listening) return;
+
+    const spokenText = getSpeechTranscript(event);
+    if (!spokenText) return;
+
+    setForm((prev) => ({
+      ...prev,
+      voiceTranscript: spokenText,
+      voiceLanguage: speechLang,
+    }));
+
+    if (!event.isFinal) return;
+
+    try {
+      const result = await parseRecipe(spokenText);
+      setForm((prev) => ({
+        ...prev,
+        ingredients: result?.ingredients?.join("\n") || prev.ingredients,
+        description: result?.steps?.join("\n") || prev.description,
+        voiceTranscript: spokenText,
+        voiceLanguage: speechLang,
+      }));
+    } catch (err) {
+      console.log(err);
+    } finally {
+      setListening(false);
+    }
+  });
+
+  useSpeechRecognitionEvent("error", (event) => {
     if (!isVoiceSupported) return;
+    setListening(false);
+    setFeedback({ type: "error", text: event?.message || "Voice recognition failed." });
+  });
 
-    Voice.onSpeechResults = async (event) => {
-      const spokenText = event.value?.[0];
-      if (!spokenText) return;
+  useSpeechRecognitionEvent("end", () => {
+    if (!isVoiceSupported) return;
+    setListening(false);
+  });
 
-      try {
-        const result = await parseRecipe(spokenText);
-        setForm((prev) => ({
-          ...prev,
-          ingredients: result?.ingredients?.join("\n") || prev.ingredients,
-          description: result?.steps?.join("\n") || prev.description,
-          voiceTranscript: spokenText,
-          voiceLanguage: speechLang,
-        }));
-      } catch (err) {
-        console.log(err);
-        setForm((prev) => ({ ...prev, voiceTranscript: spokenText, voiceLanguage: speechLang }));
-      }
-
-      setListening(false);
-    };
-
-    Voice.onSpeechError = () => {
-      setListening(false);
-    };
-
+  useEffect(() => {
     return () => {
-      try {
-        Voice.onSpeechResults = undefined as any;
-        Voice.onSpeechError = undefined as any;
-      } catch {}
-      Voice.destroy().catch(() => {});
+      abortSpeechRecognitionSession();
     };
-  }, [isVoiceSupported, speechLang]);
+  }, []);
 
   return (
     <View style={{ flex: 1, backgroundColor: AppTheme.colors.page }}>
