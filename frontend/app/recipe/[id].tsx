@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import * as Speech from "expo-speech";
 import { router, useLocalSearchParams } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getRecipeById, getSavedRecipes, toggleSaveRecipe } from "@/services/api";
 import { translateRecipe } from "@/services/aiService";
 import { AppTheme } from "@/constants/app-theme";
@@ -43,6 +44,7 @@ const languageOptions = [
 ];
 
 export default function RecipeDetailsScreen() {
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
   const id = String(params.id ?? "");
 
@@ -232,7 +234,7 @@ export default function RecipeDetailsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: AppTheme.colors.page }}>
-      <View style={{ backgroundColor: AppTheme.colors.mustard, paddingTop: 10, paddingHorizontal: 12, paddingBottom: 12, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 }}>
+      <View style={{ backgroundColor: AppTheme.colors.mustard, paddingTop: insets.top + 8, paddingHorizontal: 12, paddingBottom: 12, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Pressable onPress={goBackSafe}><Ionicons name="chevron-back" size={22} /></Pressable>
           <Image source={require("../../assets/images/Cooksy_nobg.png")} style={{ width: 95, height: 30 }} resizeMode="contain" />

@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { Image, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Image, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { auth } from "@/config/firebase";
 import { categories } from "@/constants/mock-data";
 import { getMyProfile, getRecipes } from "@/services/api";
 import { AppTheme } from "@/constants/app-theme";
 import { addSearchHistory, getFavoriteLocal, getSearchHistory, toggleFavoriteLocal, useFeatureState } from "@/state/app-features";
+import { isGuestSession } from "@/state/session";
 import { getDifficulty } from "@/utils/recipe";
 
 type Recipe = {
@@ -21,6 +24,7 @@ type Recipe = {
 };
 
 export default function ExploreScreen() {
+  const insets = useSafeAreaInsets();
   useFeatureState();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -74,9 +78,18 @@ export default function ExploreScreen() {
 
   const searchHistory = getSearchHistory();
 
+  const openUpload = () => {
+    if (!auth.currentUser || isGuestSession()) {
+      Alert.alert("Sign in required", "Upload is available only for signed-in users.");
+      router.push("/auth");
+      return;
+    }
+    router.push("/upload");
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: AppTheme.colors.page }}>
-      <View style={{ backgroundColor: AppTheme.colors.mustard, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 }}>
+      <View style={{ backgroundColor: AppTheme.colors.mustard, paddingHorizontal: 14, paddingTop: insets.top + 8, paddingBottom: 10, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Image source={require("../../assets/images/Cooksy_nobg.png")} style={{ width: 110, height: 36 }} resizeMode="contain" />
           <Pressable onPress={() => router.push("/(tabs)/profile")}>
@@ -94,6 +107,33 @@ export default function ExploreScreen() {
           <Ionicons name="search" size={16} color="#999" />
           <TextInput value={query} onChangeText={setQuery} onSubmitEditing={() => addSearchHistory(query)} placeholder="Search recipes, cuisines, chefs..." placeholderTextColor="#999" style={{ marginLeft: 6, flex: 1 }} />
         </View>
+
+        <Pressable
+          onPress={() => router.push("/ai-studio")}
+          style={{
+            marginTop: 10,
+            borderRadius: 12,
+            backgroundColor: "#fff8e8",
+            borderWidth: 1,
+            borderColor: "#ead9a0",
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+            <Ionicons name="sparkles-outline" size={18} color={AppTheme.colors.primaryDeep} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontWeight: "800", color: AppTheme.colors.ink }}>Open AI Kitchen Studio</Text>
+              <Text style={{ color: AppTheme.colors.subtleInk, fontSize: 12 }}>
+                Recipe generator, extractor, voice, and photo tools
+              </Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={AppTheme.colors.primaryDeep} />
+        </Pressable>
 
         {searchHistory.length ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 8 }}>
@@ -159,7 +199,7 @@ export default function ExploreScreen() {
         </View>
       </ScrollView>
 
-      <Pressable onPress={() => router.push("/upload")} style={{ position: "absolute", right: 16, bottom: 16, width: 56, height: 56, borderRadius: 28, backgroundColor: AppTheme.colors.primary, alignItems: "center", justifyContent: "center", elevation: 4 }}>
+      <Pressable onPress={openUpload} style={{ position: "absolute", right: 16, bottom: Math.max(insets.bottom, 10) + 6, width: 56, height: 56, borderRadius: 28, backgroundColor: AppTheme.colors.primary, alignItems: "center", justifyContent: "center", elevation: 4 }}>
         <Ionicons name="add" color="white" size={30} />
       </Pressable>
     </View>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth } from "@/config/firebase";
 import { getFollowStatus, getUserProfile, getUserRecipes, toggleFollow } from "@/services/api";
 import { AppTheme } from "@/constants/app-theme";
@@ -24,6 +25,7 @@ type Recipe = {
 };
 
 export default function UserProfileScreen() {
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
   const uid = String(params.uid ?? "");
 
@@ -96,7 +98,7 @@ export default function UserProfileScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: AppTheme.colors.page }}>
-      <View style={{ backgroundColor: AppTheme.colors.mustard, paddingTop: 10, paddingHorizontal: 12, paddingBottom: 12, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 }}>
+      <View style={{ backgroundColor: AppTheme.colors.mustard, paddingTop: insets.top + 8, paddingHorizontal: 12, paddingBottom: 12, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))}><Ionicons name="chevron-back" size={22} /></Pressable>
           <Text style={{ fontWeight: "800", fontSize: 18 }}>Chef Profile</Text>

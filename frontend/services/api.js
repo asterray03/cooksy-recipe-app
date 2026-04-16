@@ -16,8 +16,10 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
+import { getEnv } from "@/config/env";
+import { isGuestSession } from "@/state/session";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const API_URL = getEnv("EXPO_PUBLIC_API_URL");
 
 const getToken = async () => {
   const user = getAuth().currentUser;
@@ -249,6 +251,32 @@ export const getMyRecipes = async () => {
 };
 
 export const generateAiRecipe = async (payload) => {
+  if (!auth.currentUser && isGuestSession()) {
+    const ingredients = Array.isArray(payload?.ingredients)
+      ? payload.ingredients.map((x) => String(x).trim()).filter(Boolean)
+      : [];
+
+    if (!ingredients.length) {
+      throw new Error("At least one ingredient is required");
+    }
+
+    return {
+      title: payload?.title || "Cooksy Voice Chef Suggestion",
+      ingredients,
+      steps: [
+        "Prep the available ingredients and heat a pan on medium heat.",
+        `Cook ${ingredients.slice(0, 3).join(", ")} with seasoning until aromatic.`,
+        "Add remaining ingredients, simmer briefly, and adjust salt.",
+        "Serve hot and garnish before plating.",
+      ],
+      cookingTime: payload?.time || "30 min",
+      servings: payload?.servings || "2",
+      dietaryCategory: payload?.diet || "Any",
+      description: `A quick recipe suggestion using ${ingredients.slice(0, 4).join(", ")}.`,
+      tags: ["guest-mode", "quick"],
+    };
+  }
+
   withApiFallback();
 
   const res = await fetch(`${API_URL}/api/ai/generate`, {
@@ -459,6 +487,10 @@ export const getUserRecipes = async (uid) => {
 };
 
 export const getMealPlan = async () => {
+  if (!auth.currentUser && isGuestSession()) {
+    return [];
+  }
+
   withApiFallback();
 
   const res = await fetch(`${API_URL}/api/meal-plan`, {
@@ -473,6 +505,10 @@ export const getMealPlan = async () => {
 };
 
 export const upsertMealPlan = async (payload) => {
+  if (!auth.currentUser && isGuestSession()) {
+    return { ok: false, guest: true, ...payload };
+  }
+
   withApiFallback();
 
   const res = await fetch(`${API_URL}/api/meal-plan`, {
@@ -489,6 +525,10 @@ export const upsertMealPlan = async (payload) => {
 };
 
 export const generateGroceryList = async () => {
+  if (!auth.currentUser && isGuestSession()) {
+    return [];
+  }
+
   withApiFallback();
 
   const res = await fetch(`${API_URL}/api/grocery-list/generate`, {
@@ -504,6 +544,10 @@ export const generateGroceryList = async () => {
 };
 
 export const getGroceryList = async () => {
+  if (!auth.currentUser && isGuestSession()) {
+    return [];
+  }
+
   withApiFallback();
 
   const res = await fetch(`${API_URL}/api/grocery-list`, {
@@ -518,6 +562,10 @@ export const getGroceryList = async () => {
 };
 
 export const checkinGamification = async () => {
+  if (!auth.currentUser && isGuestSession()) {
+    return { streak: 0, points: 0, badges: [] };
+  }
+
   withApiFallback();
 
   const res = await fetch(`${API_URL}/api/gamification/checkin`, {
@@ -533,6 +581,10 @@ export const checkinGamification = async () => {
 };
 
 export const getGamification = async () => {
+  if (!auth.currentUser && isGuestSession()) {
+    return { streak: 0, points: 0, badges: [] };
+  }
+
   withApiFallback();
 
   const res = await fetch(`${API_URL}/api/gamification/me`, {
@@ -620,6 +672,24 @@ export const addRecipe = async (recipe) => {
 };
 
 export const getMyProfile = async () => {
+  if (!auth.currentUser && isGuestSession()) {
+    return {
+      uid: "guest",
+      name: "Guest User",
+      email: "",
+      photoURL: "",
+      posts: 0,
+      followers: 0,
+      following: 0,
+      bio: "",
+      preferredCuisine: "",
+      dietaryPreference: "",
+      location: "",
+      socialLinks: "",
+      phone: "",
+    };
+  }
+
   try {
     withApiFallback();
     const res = await fetch(`${API_URL}/api/profile/me`, {
@@ -660,6 +730,24 @@ export const getMyProfile = async () => {
 };
 
 export const updateMyProfile = async (payload) => {
+  if (!auth.currentUser && isGuestSession()) {
+    return {
+      uid: "guest",
+      name: payload?.name || "Guest User",
+      email: "",
+      photoURL: payload?.photoURL || "",
+      posts: 0,
+      followers: 0,
+      following: 0,
+      bio: payload?.bio || "",
+      preferredCuisine: payload?.preferredCuisine || "",
+      dietaryPreference: payload?.dietaryPreference || "",
+      location: payload?.location || "",
+      socialLinks: payload?.socialLinks || "",
+      phone: payload?.phone || "",
+    };
+  }
+
   try {
     withApiFallback();
     const res = await fetch(`${API_URL}/api/profile/me`, {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getMyProfile, updateMyProfile } from "@/services/api";
 
 type ProfileForm = {
@@ -26,6 +27,7 @@ const fields: { key: keyof ProfileForm; label: string }[] = [
 ];
 
 export default function EditProfileScreen() {
+  const insets = useSafeAreaInsets();
   const [form, setForm] = useState<ProfileForm>({
     name: "",
     photoURL: "",
@@ -66,7 +68,7 @@ export default function EditProfileScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#efefef" }}>
-      <View style={{ backgroundColor: "#f3c640", paddingTop: 10, paddingHorizontal: 12, paddingBottom: 12 }}>
+      <View style={{ backgroundColor: "#f3c640", paddingTop: insets.top + 8, paddingHorizontal: 12, paddingBottom: 12 }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/profile"))}>
             <Text style={{ fontSize: 20 }}>{"<"}</Text>

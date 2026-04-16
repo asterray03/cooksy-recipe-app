@@ -1,4 +1,4 @@
-import { extractIngredients, parseRecipeText, translateText } from "../services/aiService.js";
+import { extractIngredients, extractIngredientsFromImage, parseRecipeText, translateText } from "../services/aiService.js";
 
 export async function ingredientsFromText(req, res) {
 
@@ -54,6 +54,34 @@ export async function translateTextController(req, res) {
     return res.status(500).json({
       success: false,
       message: "Translation failed",
+    });
+  }
+}
+
+export async function ingredientsFromImage(req, res) {
+  try {
+    const { imageBase64 } = req.body;
+
+    if (!imageBase64) {
+      return res.status(400).json({
+        success: false,
+        message: "Image is required",
+      });
+    }
+
+    const cleaned = String(imageBase64).replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
+    const imageBuffer = Buffer.from(cleaned, "base64");
+    const result = await extractIngredientsFromImage(imageBuffer);
+
+    return res.json({
+      success: true,
+      ingredients: result.ingredients,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Image ingredient detection failed",
     });
   }
 }

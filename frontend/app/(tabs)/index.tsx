@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Image,
+  InteractionManager,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -11,12 +13,13 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { categories } from "@/constants/mock-data";
-import { generateAiRecipe, getMyProfile, getRecipes } from "@/services/api";
+import { auth } from "@/config/firebase";
+import { getMyProfile, getRecipes } from "@/services/api";
 import { AppTheme } from "@/constants/app-theme";
-import IngredientExtractor  from "../../components/IngredientExtractor";
+import AiKitchenStudio from "@/components/AiKitchenStudio";
 import {
   addSearchHistory,
   getFavoriteLocal,
@@ -24,14 +27,8 @@ import {
   toggleFavoriteLocal,
   useFeatureState,
 } from "@/state/app-features";
+import { isGuestSession } from "@/state/session";
 import { getDifficulty } from "@/utils/recipe";
-import {
-  abortSpeechRecognitionSession,
-  getSpeechTranscript,
-  isSpeechRecognitionAvailable,
-  startSpeechRecognitionSession,
-  stopSpeechRecognitionSession,
-} from "@/utils/speechRecognition";
 
 type Recipe = {
   id: string;
@@ -46,13 +43,15 @@ type Recipe = {
 };
 
 export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
   useFeatureState();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("All");
-  const [profilePhoto, setProfilePhoto] = useState<string>("");
+  const [profilePhoto, setProfilePhoto] = useState("");
+  const [showAiStudio, setShowAiStudio] = useState(false);
 
   const fade = useRef(new Animated.Value(0)).current;
 
@@ -70,7 +69,6 @@ export default function HomeScreen() {
       const profile = await getMyProfile();
       setProfilePhoto(profile?.photoURL ?? "");
     } catch {
-      // Guest/local sessions can fail profile lookup; keep recipe feed available.
       setProfilePhoto("");
     }
 
@@ -81,6 +79,22 @@ export default function HomeScreen() {
     loadData();
     Animated.timing(fade, { toValue: 1, duration: 380, useNativeDriver: true }).start();
   }, [fade]);
+
+  useEffect(() => {
+    let mounted = true;
+    const task = InteractionManager.runAfterInteractions(() => {
+      setTimeout(() => {
+        if (mounted) {
+          setShowAiStudio(true);
+        }
+      }, 450);
+    });
+
+    return () => {
+      mounted = false;
+      task.cancel?.();
+    };
+  }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -106,6 +120,15 @@ export default function HomeScreen() {
 
   const submitSearch = () => addSearchHistory(query);
 
+  const openUpload = () => {
+    if (!auth.currentUser || isGuestSession()) {
+      Alert.alert("Sign in required", "Upload is available only for signed-in users.");
+      router.push("/auth");
+      return;
+    }
+    router.push("/upload");
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: AppTheme.colors.page }}>
       <ScrollView
@@ -113,6 +136,7 @@ export default function HomeScreen() {
         contentContainerStyle={{ paddingBottom: 90 }}
       >
         <TopHeader
+          topInset={insets.top}
           query={query}
           onQueryChange={setQuery}
           onSubmitSearch={submitSearch}
@@ -120,10 +144,13 @@ export default function HomeScreen() {
           searchHistory={searchHistory}
         />
 
-        <IngredientExtractor enableVoice={false} />
-        <VoiceChefCard />
-
         <Animated.View style={{ padding: 14, opacity: fade }}>
+          {showAiStudio ? (
+            <AiKitchenStudio />
+          ) : (
+            <AiStudioPlaceholder />
+          )}
+
           <SectionTitle title="Trending Now" subtitle={loading ? "Loading..." : `${filtered.length} recipes`} />
 
           {featured ? (
@@ -158,7 +185,7 @@ export default function HomeScreen() {
               </View>
             </Pressable>
           ) : (
-            <EmptyCard loading={loading} />
+            <EmptyCard loading={loading} onUploadPress={openUpload} />
           )}
 
           {recent.length ? (
@@ -249,11 +276,11 @@ export default function HomeScreen() {
       </ScrollView>
 
       <Pressable
-        onPress={() => router.push("/upload")}
+        onPress={openUpload}
         style={{
           position: "absolute",
           right: 16,
-          bottom: 16,
+          bottom: Math.max(insets.bottom, 10) + 6,
           width: 56,
           height: 56,
           borderRadius: 28,
@@ -280,12 +307,14 @@ function FavoriteButton({ recipeId }: { recipeId: string }) {
 }
 
 function TopHeader({
+  topInset,
   query,
   onQueryChange,
   onSubmitSearch,
   profilePhoto,
   searchHistory,
 }: {
+  topInset: number;
   query: string;
   onQueryChange: (v: string) => void;
   onSubmitSearch: () => void;
@@ -293,10 +322,10 @@ function TopHeader({
   searchHistory: string[];
 }) {
   return (
-    <View style={{ backgroundColor: AppTheme.colors.mustard, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 12, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 }}>
+    <View style={{ backgroundColor: AppTheme.colors.mustard, paddingHorizontal: 14, paddingTop: topInset + 8, paddingBottom: 12, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
         <Image source={require("../../assets/images/Cooksy_nobg.png")} style={{ width: 110, height: 36 }} resizeMode="contain" />
-        <Pressable onPress={() => router.push("/(tabs)/profile")}> 
+        <Pressable onPress={() => router.push("/(tabs)/profile")}>
           {profilePhoto ? (
             <Image source={{ uri: profilePhoto }} style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: AppTheme.colors.primary }} />
           ) : (
@@ -332,7 +361,7 @@ function TopHeader({
   );
 }
 
-function EmptyCard({ loading }: { loading: boolean }) {
+function EmptyCard({ loading, onUploadPress }: { loading: boolean; onUploadPress: () => void }) {
   return (
     <View style={{ marginTop: 10, borderRadius: AppTheme.radius.lg, borderWidth: 1, borderColor: AppTheme.colors.border, backgroundColor: "white", padding: 16, alignItems: "center" }}>
       <Ionicons name={loading ? "hourglass-outline" : "restaurant-outline"} size={22} color={AppTheme.colors.subtleInk} />
@@ -340,10 +369,53 @@ function EmptyCard({ loading }: { loading: boolean }) {
         {loading ? "Loading recipes..." : "No recipes yet. Add your first recipe to get started."}
       </Text>
       {!loading ? (
-        <Pressable onPress={() => router.push("/upload")} style={{ marginTop: 10, backgroundColor: AppTheme.colors.primary, borderRadius: AppTheme.radius.pill, paddingHorizontal: 14, paddingVertical: 8 }}>
+        <Pressable onPress={onUploadPress} style={{ marginTop: 10, backgroundColor: AppTheme.colors.primary, borderRadius: AppTheme.radius.pill, paddingHorizontal: 14, paddingVertical: 8 }}>
           <Text style={{ color: "white", fontWeight: "700" }}>Upload Recipe</Text>
         </Pressable>
       ) : null}
+    </View>
+  );
+}
+
+function AiStudioPlaceholder() {
+  return (
+    <View
+      style={{
+        marginTop: 12,
+        borderRadius: 16,
+        backgroundColor: "#fff8e8",
+        borderWidth: 1,
+        borderColor: "#ead9a0",
+        paddingHorizontal: 14,
+        paddingVertical: 14,
+      }}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <View
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: AppTheme.colors.mustard,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Ionicons name="sparkles-outline" size={20} color={AppTheme.colors.primaryDeep} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 17, fontWeight: "800", color: AppTheme.colors.ink }}>
+            AI Kitchen Studio
+          </Text>
+          <Text style={{ color: AppTheme.colors.subtleInk, marginTop: 2 }}>
+            Loading recipe generator, extractor, voice, and photo tools...
+          </Text>
+        </View>
+      </View>
+
+      <View style={{ marginTop: 12, alignItems: "center" }}>
+        <ActivityIndicator color={AppTheme.colors.primaryDeep} />
+      </View>
     </View>
   );
 }
@@ -353,198 +425,6 @@ function SectionTitle({ title, subtitle, style }: { title: string; subtitle: str
     <View style={[{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, style]}>
       <Text style={{ fontSize: 17, fontWeight: "800" }}>{title}</Text>
       <Text style={{ color: AppTheme.colors.subtleInk }}>{subtitle}</Text>
-    </View>
-  );
-}
-
-function VoiceChefCard() {
-  const isVoiceSupported = isSpeechRecognitionAvailable();
-  const [listening, setListening] = useState(false);
-  const [queryText, setQueryText] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [recipe, setRecipe] = useState<any>(null);
-
-  const extractIngredientsFromPrompt = useCallback((prompt: string) => {
-    const cleaned = prompt.toLowerCase().replace(/\?/g, " ").trim();
-    const withMatch = cleaned.match(/with\s+(.+)/i);
-    const source = withMatch ? withMatch[1] : cleaned;
-
-    const tokens = source
-      .split(/,| and |&|\+/gi)
-      .map((x) => x.replace(/[^a-z\s]/gi, " ").trim())
-      .map((x) => x.split(/\s+/).filter(Boolean).slice(-2).join(" "))
-      .filter(Boolean)
-      .filter((x, idx, arr) => arr.indexOf(x) === idx);
-
-    return tokens.slice(0, 8);
-  }, []);
-
-  const generateFromPrompt = useCallback(async (prompt: string) => {
-    const trimmed = String(prompt || "").trim();
-    if (!trimmed) return;
-
-    const ingredients = extractIngredientsFromPrompt(trimmed);
-    if (!ingredients.length) {
-      setError("Tell me ingredients like: tomatoes and eggs.");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-    try {
-      const generated = await generateAiRecipe({
-        ingredients,
-        time: "30 min",
-        diet: "Any",
-        title: "Cooksy Voice Chef Suggestion",
-        servings: "2",
-      });
-      setRecipe(generated || null);
-    } catch (err: any) {
-      setError(err?.message || "Could not generate recipe right now.");
-      setRecipe(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [extractIngredientsFromPrompt]);
-
-  const startListening = async () => {
-    if (!isVoiceSupported) {
-      setError("Voice input is not available in this runtime.");
-      return;
-    }
-    try {
-      setError("");
-      const result = await startSpeechRecognitionSession({
-        lang: "en-US",
-        interimResults: true,
-      });
-
-      if (!result.ok) {
-        if (result.reason === "permissions") {
-          setError("Microphone permission was denied.");
-        } else if (result.reason === "busy") {
-          setError("Voice recognition is already in use.");
-        } else {
-          setError("Voice input is not available in this runtime.");
-        }
-        setListening(false);
-        return;
-      }
-
-      setListening(true);
-    } catch (err: any) {
-      setListening(false);
-      setError(err?.message || "Could not start voice input.");
-    }
-  };
-
-  const stopListening = async () => {
-    if (!isVoiceSupported) return;
-    stopSpeechRecognitionSession();
-    setListening(false);
-  };
-
-  useSpeechRecognitionEvent("result", async (event) => {
-    if (!isVoiceSupported || !listening) return;
-
-    const spoken = getSpeechTranscript(event);
-    if (!spoken) return;
-
-    setQueryText(spoken);
-
-    if (event.isFinal) {
-      setListening(false);
-      await generateFromPrompt(spoken);
-    }
-  });
-
-  useSpeechRecognitionEvent("error", (event) => {
-    if (!isVoiceSupported) return;
-    setListening(false);
-    setError(event?.message || "Voice recognition failed.");
-  });
-
-  useSpeechRecognitionEvent("end", () => {
-    if (!isVoiceSupported) return;
-    setListening(false);
-  });
-
-  useEffect(() => {
-    return () => {
-      abortSpeechRecognitionSession();
-    };
-  }, []);
-
-  return (
-    <View style={{ marginHorizontal: 14, marginTop: 10, backgroundColor: "white", borderRadius: 14, borderWidth: 1, borderColor: AppTheme.colors.border, padding: 12 }}>
-      <Text style={{ fontSize: 17, fontWeight: "800" }}>Cooksy Voice Chef</Text>
-      <Text style={{ marginTop: 4, color: AppTheme.colors.subtleInk }}>
-        Ask by voice: What can I cook with tomatoes and eggs?
-      </Text>
-
-      <View style={{ marginTop: 10, flexDirection: "row", gap: 8 }}>
-        <View style={{ flex: 1, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: AppTheme.colors.border, borderRadius: 10, paddingHorizontal: 10, minHeight: 40 }}>
-          <Ionicons name="chatbubble-ellipses-outline" size={16} color="#888" />
-          <TextInput
-            value={queryText}
-            onChangeText={setQueryText}
-            placeholder="What can I cook with tomatoes and eggs?"
-            placeholderTextColor="#999"
-            style={{ marginLeft: 8, flex: 1 }}
-          />
-        </View>
-        <Pressable
-          onPress={listening ? stopListening : startListening}
-          disabled={loading}
-          style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: listening ? "#d14d4d" : AppTheme.colors.primary, alignItems: "center", justifyContent: "center" }}
-        >
-          <Ionicons name={listening ? "stop" : "mic"} color="white" size={18} />
-        </Pressable>
-      </View>
-
-      <Pressable
-        onPress={() => generateFromPrompt(queryText)}
-        disabled={loading}
-        style={{ marginTop: 10, backgroundColor: loading ? "#dec27a" : AppTheme.colors.mustardDeep, borderRadius: 10, paddingVertical: 10, alignItems: "center" }}
-      >
-        <Text style={{ fontWeight: "800" }}>{loading ? "Thinking..." : "Get Recipe Suggestion"}</Text>
-      </Pressable>
-
-      {loading ? (
-        <View style={{ marginTop: 10, alignItems: "center" }}>
-          <ActivityIndicator />
-        </View>
-      ) : null}
-
-      {error ? <Text style={{ marginTop: 8, color: "#b22b2b", fontWeight: "600" }}>{error}</Text> : null}
-
-      {recipe ? (
-        <View style={{ marginTop: 10, backgroundColor: "#fcfcfc", borderWidth: 1, borderColor: "#ececec", borderRadius: 10, padding: 10 }}>
-          <Text style={{ fontWeight: "800", fontSize: 16 }}>{recipe.title || "Recipe Suggestion"}</Text>
-          <Text style={{ marginTop: 4, color: AppTheme.colors.subtleInk }}>
-            {recipe.cookingTime || "30 min"} • {recipe.servings || "2 servings"}
-          </Text>
-          {recipe.description ? <Text style={{ marginTop: 6, color: AppTheme.colors.ink }}>{recipe.description}</Text> : null}
-
-          {Array.isArray(recipe.ingredients) && recipe.ingredients.length ? (
-            <Text style={{ marginTop: 8, color: AppTheme.colors.ink }}>
-              Ingredients: {recipe.ingredients.join(", ")}
-            </Text>
-          ) : null}
-
-          {Array.isArray(recipe.steps) && recipe.steps.length ? (
-            <View style={{ marginTop: 8 }}>
-              {recipe.steps.slice(0, 4).map((step: string, idx: number) => (
-                <Text key={`${step}-${idx}`} style={{ color: AppTheme.colors.ink, marginTop: idx === 0 ? 0 : 4 }}>
-                  {idx + 1}. {step}
-                </Text>
-              ))}
-            </View>
-          ) : null}
-        </View>
-      ) : null}
     </View>
   );
 }

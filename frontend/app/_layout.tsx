@@ -3,7 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native
 import { Stack, router, usePathname, useRootNavigationState } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
 import type { User } from "firebase/auth";
 import { auth } from "@/config/firebase";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -38,35 +38,18 @@ export default function RootLayout() {
   useEffect(() => {
     let mounted = true;
 
-    const boot = async () => {
-      // User requested auth-first flow on every app launch.
-      try {
-        await signOut(auth);
-      } catch {
-        // Ignore if already signed out.
+    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+      if (!mounted) return;
+      setUser(nextUser);
+      if (nextUser) {
+        setGuestSession(false);
       }
+      setLoading(false);
 
-      const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
-        if (!mounted) return;
-        setUser(nextUser);
-        if (nextUser) {
-          setGuestSession(false);
-        }
-        setLoading(false);
-
-        // Force app landing to tabs after successful auth, avoiding stale route restore.
-        if (nextUser && !didRouteAfterLogin.current) {
-          didRouteAfterLogin.current = true;
-          router.replace("/(tabs)");
-        }
-      });
-
-      return unsubscribe;
-    };
-
-    let unsubscribe = () => {};
-    boot().then((fn) => {
-      unsubscribe = fn;
+      if (nextUser && !didRouteAfterLogin.current) {
+        didRouteAfterLogin.current = true;
+        router.replace("/(tabs)");
+      }
     });
 
     return () => {
@@ -110,7 +93,9 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false }}>
           {user || guestMode ? (
             <>
+              <Stack.Screen name="index" />
               <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="ai-studio" />
               <Stack.Screen name="recipe/[id]" />
               <Stack.Screen name="user/[uid]" />
               <Stack.Screen name="upload" />
@@ -118,6 +103,7 @@ export default function RootLayout() {
             </>
           ) : (
             <>
+              <Stack.Screen name="index" />
               <Stack.Screen name="welcome" />
               <Stack.Screen name="auth" />
               <Stack.Screen name="forgot-password" />

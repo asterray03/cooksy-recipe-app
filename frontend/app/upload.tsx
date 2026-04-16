@@ -1,15 +1,16 @@
 import { useMemo, useState, useEffect } from "react";
 import { useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { Audio } from "expo-av";
-import * as ImagePicker from "expo-image-picker";
 import { parseRecipe } from "@/services/aiService";
 import { Alert, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import type { TextInputProps } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { addRecipe } from "@/services/api";
 import { AppTheme } from "@/constants/app-theme";
 import { auth } from "@/config/firebase";
+import { isGuestSession } from "@/state/session";
 import {
   abortSpeechRecognitionSession,
   getSpeechTranscript,
@@ -17,6 +18,14 @@ import {
   startSpeechRecognitionSession,
   stopSpeechRecognitionSession,
 } from "@/utils/speechRecognition";
+
+const loadImagePicker = async () => {
+  try {
+    return await import("expo-image-picker");
+  } catch {
+    return null;
+  }
+};
 
 const speechLanguages = [
   { label: "English", code: "en-US" },
@@ -34,7 +43,9 @@ const speechLanguages = [
 ];
 
 export default function UploadRecipeScreen() {
+  const insets = useSafeAreaInsets();
   const isVoiceSupported = isSpeechRecognitionAvailable();
+  const isGuest = !auth.currentUser || isGuestSession();
   const [listening, setListening] = useState(false);
   const [speechLang, setSpeechLang] = useState("en-US");
   const [form, setForm] = useState({
@@ -59,6 +70,13 @@ export default function UploadRecipeScreen() {
   const descriptionCount = form.description.length;
 
   const hasMedia = useMemo(() => !!form.image, [form.image]);
+
+  useEffect(() => {
+    if (!isGuest) return;
+
+    Alert.alert("Sign in required", "Upload is available only for signed-in users.");
+    router.replace("/auth");
+  }, [isGuest]);
 
   const goBackSafe = () => {
     if (router.canGoBack()) {
@@ -101,6 +119,12 @@ export default function UploadRecipeScreen() {
 
   const pickMediaFromDevice = async () => {
     try {
+      const ImagePicker = await loadImagePicker();
+      if (!ImagePicker) {
+        setFeedback({ type: "error", text: "Photo picker is not available in this build." });
+        return;
+      }
+
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
         setFeedback({ type: "error", text: "Media library permission is required." });
@@ -284,7 +308,7 @@ export default function UploadRecipeScreen() {
       <View
         style={{
           backgroundColor: AppTheme.colors.mustard,
-          paddingTop: 10,
+          paddingTop: insets.top + 8,
           paddingHorizontal: 12,
           paddingBottom: 12,
           borderBottomLeftRadius: 18,
@@ -299,7 +323,7 @@ export default function UploadRecipeScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 12, gap: 10, paddingBottom: 24 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 10, paddingBottom: Math.max(insets.bottom, 12) + 12 }}>
         <Field label="Recipe Title" value={form.title} onChangeText={(v) => setForm((p) => ({ ...p, title: v }))} />
 
         <Text style={{ color: "#333", marginBottom: 4, fontWeight: "600" }}>Upload Photo/Video</Text>
@@ -502,7 +526,7 @@ export default function UploadRecipeScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
-              if (!auth.currentUser) {
+              if (isGuest) {
                 setFeedback({ type: "error", text: "Please sign in first. Redirecting to login..." });
                 router.replace("/auth");
                 return;
@@ -518,7 +542,7 @@ export default function UploadRecipeScreen() {
             }}
           >
             <Text style={{ textAlign: "center", fontWeight: "800" }}>
-              {submitting ? "Uploading..." : auth.currentUser ? "Upload" : "Login to Upload"}
+              {submitting ? "Uploading..." : isGuest ? "Login to Upload" : "Upload"}
             </Text>
           </Pressable>
         </View>

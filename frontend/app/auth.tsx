@@ -1,25 +1,34 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Image, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import type { TextInputProps } from "react-native";
+import { makeRedirectUri } from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
 import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
-  signInAnonymously,
   signInWithCredential,
   signInWithEmailAndPassword,
   signInWithPopup,
   updateProfile,
 } from "firebase/auth";
 import { router } from "expo-router";
+import type { Href } from "expo-router";
 import { auth, db } from "@/config/firebase";
+import { getEnv } from "@/config/env";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { setGuestSession } from "@/state/session";
 
 WebBrowser.maybeCompleteAuthSession();
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const API_URL = getEnv("EXPO_PUBLIC_API_URL");
+const fallbackGoogleClientId =
+  "409144630675-f3np7u4oh1565gbo64eou3m2q0tv5p73.apps.googleusercontent.com";
+const tabsHomeRoute = "/(tabs)" as Href;
+const googleRedirectUri = makeRedirectUri({
+  path: "auth",
+  native: "cooksy://auth",
+});
 
 export default function AuthScreen() {
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -45,9 +54,12 @@ export default function AuthScreen() {
     return error?.message || "Authentication failed";
   };
 
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId:
-      "409144630675-f3np7u4oh1565gbo64eou3m2q0tv5p73.apps.googleusercontent.com",
+  const [, response, promptAsync] = Google.useAuthRequest({
+    clientId: getEnv("EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID") || fallbackGoogleClientId,
+    androidClientId: getEnv("EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID"),
+    iosClientId: getEnv("EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID"),
+    webClientId: getEnv("EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID") || fallbackGoogleClientId,
+    redirectUri: googleRedirectUri,
     scopes: ["profile", "email"],
     responseType: "id_token",
     extraParams: { nonce: "cooksyNonce" },
@@ -83,7 +95,17 @@ export default function AuthScreen() {
 
   useEffect(() => {
     const loginWithGoogle = async () => {
-      if (response?.type !== "success") return;
+      if (!response) return;
+
+      if (response.type !== "success") {
+        setAuthLoading(false);
+        if (response.type === "error") {
+          const msg = response.error?.message || "Google sign-in could not be completed.";
+          setAuthError(msg);
+        }
+        return;
+      }
+
       setAuthLoading(true);
 
       const idToken = response.params?.id_token;
@@ -95,7 +117,7 @@ export default function AuthScreen() {
       const credential = GoogleAuthProvider.credential(idToken);
       const userCred = await signInWithCredential(auth, credential);
       setGuestSession(false);
-      router.replace("/(tabs)");
+      router.replace(tabsHomeRoute);
 
       try {
         await syncUser(userCred.user, "google");
@@ -150,14 +172,14 @@ export default function AuthScreen() {
         const userCred = await createUserWithEmailAndPassword(auth, email.trim(), password);
         await updateProfile(userCred.user, { displayName: name.trim() });
         setGuestSession(false);
-        router.replace("/(tabs)");
+        router.replace(tabsHomeRoute);
         syncUser(userCred.user, "email").catch((err) => {
           console.log("Signup sync failed", err);
         });
       } else {
         const userCred = await signInWithEmailAndPassword(auth, email.trim(), password);
         setGuestSession(false);
-        router.replace("/(tabs)");
+        router.replace(tabsHomeRoute);
         syncUser(userCred.user, "email").catch((err) => {
           console.log("Login sync failed", err);
         });
@@ -175,22 +197,9 @@ export default function AuthScreen() {
   const continueAsGuest = async () => {
     try {
       setAuthLoading(true);
-      try {
-        const userCred = await signInAnonymously(auth);
-        setGuestSession(true);
-        await syncUser(userCred.user, "anonymous");
-        router.replace("/(tabs)");
-        return;
-      } catch (err: any) {
-        console.log("Anonymous auth unavailable, using local guest mode", err);
-        // Fallback: allow guest browsing even when anonymous auth is disabled in Firebase.
-        setGuestSession(true);
-        router.replace("/(tabs)");
-        Alert.alert(
-          "Guest Mode",
-          "You are in guest mode. Upload/save features need sign-in."
-        );
-      }
+      setAuthError("");
+      setGuestSession(true);
+      router.replace(tabsHomeRoute);
     } catch (err: any) {
       console.log("Guest login failed", err);
       setGuestSession(false);
@@ -207,12 +216,13 @@ export default function AuthScreen() {
 
   const handleGoogleAuth = async () => {
     try {
+      setAuthError("");
       setAuthLoading(true);
       if (Platform.OS === "web") {
         const provider = new GoogleAuthProvider();
         const userCred = await signInWithPopup(auth, provider);
         setGuestSession(false);
-        router.replace("/(tabs)");
+        router.replace(tabsHomeRoute);
         await syncUser(userCred.user, "google");
         return;
       }
@@ -269,7 +279,7 @@ export default function AuthScreen() {
 
           <Pressable
             onPress={handleGoogleAuth}
-            disabled={(Platform.OS !== "web" && !request) || authLoading}
+            disabled={authLoading}
             style={{ marginTop: 10, backgroundColor: "white", borderRadius: 999, paddingVertical: 12, borderWidth: 1, borderColor: "#e3e3e3" }}
           >
             <Text style={{ color: "#353535", textAlign: "center", fontWeight: "700" }}>CONTINUE WITH GOOGLE</Text>

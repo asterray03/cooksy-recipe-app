@@ -3,7 +3,12 @@ import type { ExpoSpeechRecognitionResultEvent } from "expo-speech-recognition";
 
 export function isSpeechRecognitionAvailable() {
   try {
-    return !!ExpoSpeechRecognitionModule?.isRecognitionAvailable?.();
+    return !!(
+      ExpoSpeechRecognitionModule &&
+      typeof ExpoSpeechRecognitionModule.start === "function" &&
+      typeof ExpoSpeechRecognitionModule.stop === "function" &&
+      typeof ExpoSpeechRecognitionModule.requestPermissionsAsync === "function"
+    );
   } catch {
     return false;
   }
@@ -30,11 +35,11 @@ export async function startSpeechRecognitionSession({
   interimResults = true,
   continuous = false,
 }: StartSpeechRecognitionOptions = {}) {
-  if (!isSpeechRecognitionAvailable()) {
-    return { ok: false as const, reason: "unavailable" as const };
-  }
-
   try {
+    if (!isSpeechRecognitionAvailable()) {
+      return { ok: false as const, reason: "unavailable" as const };
+    }
+
     const state = await ExpoSpeechRecognitionModule.getStateAsync();
     if (state !== "inactive") {
       return { ok: false as const, reason: "busy" as const, state };
@@ -43,19 +48,23 @@ export async function startSpeechRecognitionSession({
     // If the recognizer state cannot be read, continue and rely on start/error events.
   }
 
-  const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-  if (!permission.granted) {
-    return { ok: false as const, reason: "permissions" as const };
+  try {
+    const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+    if (!permission.granted) {
+      return { ok: false as const, reason: "permissions" as const };
+    }
+
+    ExpoSpeechRecognitionModule.start({
+      lang,
+      interimResults,
+      continuous,
+      maxAlternatives: 1,
+    });
+
+    return { ok: true as const };
+  } catch {
+    return { ok: false as const, reason: "unavailable" as const };
   }
-
-  ExpoSpeechRecognitionModule.start({
-    lang,
-    interimResults,
-    continuous,
-    maxAlternatives: 1,
-  });
-
-  return { ok: true as const };
 }
 
 export function stopSpeechRecognitionSession() {

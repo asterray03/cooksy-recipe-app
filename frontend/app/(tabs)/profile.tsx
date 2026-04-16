@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Alert, Image, Linking, Platform, Pressable, RefreshControl, ScrollView, Share, Switch, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { signOut } from "firebase/auth";
 import { auth } from "@/config/firebase";
 import { checkinGamification, getGamification, getMyProfile, getMyRecipes, getSavedRecipes, toggleSaveRecipe } from "@/services/api";
@@ -26,6 +27,7 @@ type Profile = {
 };
 
 export default function ProfileScreen() {
+  const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState<Profile>({
     name: auth.currentUser?.displayName || (auth.currentUser?.isAnonymous ? "Guest User" : ""),
     photoURL: auth.currentUser?.photoURL || "",
@@ -44,16 +46,38 @@ export default function ProfileScreen() {
 
   const loadData = async () => {
     const user = auth.currentUser;
+    const guest = !!user?.isAnonymous || isGuestSession();
 
     // Always seed profile with auth data so UI is never blank.
     setProfile((prev) => ({
       ...prev,
-      name: prev.name || user?.displayName || (user?.isAnonymous ? "Guest User" : ""),
+      name: prev.name || user?.displayName || (guest ? "Guest User" : ""),
       photoURL: prev.photoURL || user?.photoURL || "",
     }));
 
     let postsCount = 0;
-    let savedList: Recipe[] = [];
+
+    if (guest && !user) {
+      setMyRecipes([]);
+      setSavedRecipes([]);
+      setProfile((prev) => ({
+        ...prev,
+        name: "Guest User",
+        photoURL: "",
+        posts: 0,
+        followers: 0,
+        following: 0,
+        bio: "",
+        preferredCuisine: "",
+        dietaryPreference: "",
+        location: "",
+        socialLinks: "",
+        phone: "",
+      }));
+      setStreak(0);
+      setBadges([]);
+      return;
+    }
 
     try {
       const postData = await getMyRecipes();
@@ -67,8 +91,7 @@ export default function ProfileScreen() {
 
     try {
       const savedData = await getSavedRecipes();
-      savedList = Array.isArray(savedData) ? savedData : [];
-      setSavedRecipes(savedList);
+      setSavedRecipes(Array.isArray(savedData) ? savedData : []);
     } catch (err) {
       console.log("Failed to load saved recipes", err);
       setSavedRecipes([]);
@@ -80,7 +103,7 @@ export default function ProfileScreen() {
         name:
           profileData?.name ??
           user?.displayName ??
-          (user?.isAnonymous ? "Guest User" : ""),
+          (guest ? "Guest User" : ""),
         photoURL: profileData?.photoURL ?? user?.photoURL ?? "",
         posts: Number(profileData?.posts ?? postsCount),
         followers: Number(profileData?.followers ?? 0),
@@ -96,7 +119,7 @@ export default function ProfileScreen() {
       console.log("Failed to load profile basics", err);
       setProfile((prev) => ({
         ...prev,
-        name: prev.name || user?.displayName || (user?.isAnonymous ? "Guest User" : ""),
+        name: prev.name || user?.displayName || (guest ? "Guest User" : ""),
         photoURL: prev.photoURL || user?.photoURL || "",
         posts: prev.posts || postsCount,
       }));
@@ -220,7 +243,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: AppTheme.colors.page }}>
-      <View style={{ backgroundColor: AppTheme.colors.mustard, paddingTop: 10, paddingHorizontal: 12, paddingBottom: 12, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 }}>
+      <View style={{ backgroundColor: AppTheme.colors.mustard, paddingTop: insets.top + 8, paddingHorizontal: 12, paddingBottom: 12, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Pressable onPress={() => router.push("/(tabs)")}><Ionicons name="chevron-back" size={22} /></Pressable>
           <Text style={{ fontWeight: "800", fontSize: 18 }}>Profile</Text>
@@ -300,7 +323,18 @@ export default function ProfileScreen() {
           <View style={{ marginTop: 10, backgroundColor: "white", borderRadius: AppTheme.radius.md, borderWidth: 1, borderColor: AppTheme.colors.border, padding: 16, alignItems: "center" }}>
             <Ionicons name="images-outline" size={22} color={AppTheme.colors.subtleInk} />
             <Text style={{ marginTop: 8, color: AppTheme.colors.subtleInk, textAlign: "center" }}>{activeTab === "posts" ? "No posts yet. Upload your first recipe." : "No saved recipes yet. Save recipes from detail page."}</Text>
-            <Pressable onPress={() => router.push(activeTab === "posts" ? "/upload" : "/(tabs)/explore")} style={{ marginTop: 10, backgroundColor: AppTheme.colors.primary, borderRadius: AppTheme.radius.pill, paddingHorizontal: 14, paddingVertical: 8 }}><Text style={{ color: "white", fontWeight: "700" }}>{activeTab === "posts" ? "Upload" : "Explore"}</Text></Pressable>
+            <Pressable onPress={() => {
+              if (activeTab !== "posts") {
+                router.push("/(tabs)/explore");
+                return;
+              }
+              if (isGuest) {
+                Alert.alert("Sign in required", "Upload is available only for signed-in users.");
+                router.push("/auth");
+                return;
+              }
+              router.push("/upload");
+            }} style={{ marginTop: 10, backgroundColor: AppTheme.colors.primary, borderRadius: AppTheme.radius.pill, paddingHorizontal: 14, paddingVertical: 8 }}><Text style={{ color: "white", fontWeight: "700" }}>{activeTab === "posts" ? "Upload" : "Explore"}</Text></Pressable>
           </View>
         ) : activeTab === "saved" ? (
           <View style={{ marginTop: 10, gap: 8 }}>
